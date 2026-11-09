@@ -1,0 +1,46 @@
+--- a/verl/trainer/ppo/v1/trainer_base.py	2026-11-05 20:39:17.821891723 +0000
++++ b/verl/trainer/ppo/v1/trainer_base.py	2026-11-05 20:39:31.816671288 +0000
+@@ -102,6 +102,27 @@
+ logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "INFO"))
+ 
+ 
++def compute_group_signal_metrics(uids, seq_rewards, prefix: str = "training/groups") -> dict:
++    """text2sql local patch: share of GRPO groups that carry no learning signal.
++
++    A group = all samples sharing a prompt `uid` (the grouping GRPO uses). If every sample in a group has
++    the same sequence reward, every advantage is 0 and the group adds no gradient. Splits those groups by
++    the common reward's sign (for a -1/0/+1 reward: no submit / wrong / correct).
++    """
++    groups = defaultdict(list)
++    for uid, r in zip(uids, seq_rewards, strict=True):
++        groups[uid].append(float(r))
++    n = max(len(groups), 1)
++    zero_var = [v[0] for v in groups.values() if max(v) - min(v) < 1e-6]
++    return {
++        f"{prefix}/num_groups": len(groups),
++        f"{prefix}/zero_variance_frac": len(zero_var) / n,
++        f"{prefix}/all_positive_frac": sum(r > 0 for r in zero_var) / n,
++        f"{prefix}/all_zero_frac": sum(r == 0 for r in zero_var) / n,
++        f"{prefix}/all_negative_frac": sum(r < 0 for r in zero_var) / n,
++    }
++
++
+ def _count_tq_prompt_groups(partition_id: str = "train") -> int:
+     """Number of prompt groups currently registered in a TransferQueue partition."""
+     data = tq.kv_list(partition_id)
+@@ -1765,6 +1786,15 @@
+         else:
+             data.batch["token_level_rewards"] = data.batch["token_level_scores"]
+ 
++        # text2sql local patch: log how many GRPO groups have zero reward variance (no gradient).
++        is_real = np.array([not tag.get("is_padding", False) for tag in batch.tags], dtype=bool)
++        metrics.update(
++            compute_group_signal_metrics(
++                data.non_tensor_batch["uid"][is_real],
++                data.batch["token_level_rewards"].sum(-1)[torch.from_numpy(is_real)].tolist(),
++            )
++        )
++
+         # 2. Compute rollout correction: IS weights, rejection sampling, and metrics
+         # Only runs in decoupled mode (computes once per batch using stable π_old)
+         # In bypass mode, this is skipped - actor computes metrics from evolving π_θ vs π_rollout

@@ -1,0 +1,37 @@
+--- a/verl/trainer/ppo/v1/trainer_base.py	2026-11-04 01:28:41.581991044 +0000
++++ b/verl/trainer/ppo/v1/trainer_base.py	2026-11-04 01:28:41.594990842 +0000
+@@ -1742,7 +1742,13 @@
+ 
+     def _compute_advantage(self, batch: KVBatchMeta, metrics: dict) -> KVBatchMeta:
+         """Compute the advantage of the batch."""
+-        fields = ["uid", "response_mask", "rm_scores", "rollout_log_probs", "old_log_probs", "ref_log_prob", "values"]
++        fields = ["uid", "response_mask", "rm_scores", "rollout_log_probs", "old_log_probs"]
++        # text2sql local patch: only request fields that were produced (backport of upstream #8461 for
++        # `values`, plus the same guard for `ref_log_prob`, which only exists when a KL term is enabled).
++        if self.use_reference_policy:
++            fields.append("ref_log_prob")
++        if self.use_critic:
++            fields.append("values")
+         data = tq.kv_batch_get(keys=batch.keys, partition_id=batch.partition_id, select_fields=fields)
+ 
+         response_mask = data["response_mask"]
+@@ -1872,13 +1878,17 @@
+             "prompts",
+             "responses",
+             "response_mask",
+-            "values",
+             "advantages",
+             "returns",
+             "rm_scores",
+-            "token_level_rewards",
+             "num_turns",
+         ]
++        # text2sql local patch: `values` only with a critic (upstream #8461); `token_level_rewards` is only
++        # written back when use_kl_in_reward (otherwise the fallback below uses rm_scores).
++        if self.use_critic:
++            fields.append("values")
++        if self.config.algorithm.use_kl_in_reward:
++            fields.append("token_level_rewards")
+         moe_lb_metrics_interval = self.config.actor_rollout_ref.rollout.get("moe_load_balance_metrics_interval", 0)
+         data = get_metric_data_with_optional_routed_experts(
+             keys=batch.keys,

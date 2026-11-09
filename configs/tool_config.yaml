@@ -1,0 +1,34 @@
+# Loaded by verl via actor_rollout_ref.rollout.multi_turn.tool_config_path
+tools:
+  - class_name: text2sql_verl.tools.ExecuteSQLTool
+    config:
+      type: native
+      timeout_s: 5        # SkyRL tool timeout
+      max_turns: 6        # keep in sync with multi_turn.max_assistant_turns
+    tool_schema:
+      type: function
+      function:
+        name: execute_sql
+        description: Execute a read-only SQLite query against the database and return the result rows. Use it to explore the data or verify a draft query.
+        parameters:
+          type: object
+          properties:
+            sql:
+              type: string
+              description: A single SQLite query.
+          required: [sql]
+  - class_name: text2sql_verl.tools.SubmitSQLTool
+    config:
+      type: native
+    tool_schema:
+      type: function
+      function:
+        name: submit_sql
+        description: Submit the final SQL query that answers the question. This ends the task; call it exactly once.
+        parameters:
+          type: object
+          properties:
+            sql:
+              type: string
+              description: The final SQLite query.
+          required: [sql]

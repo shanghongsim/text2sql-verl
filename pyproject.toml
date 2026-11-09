@@ -1,0 +1,8 @@
+[project]
+name = "text2sql-verl"
+version = "0.1.0"
+description = "verl 0.9 plugins (tools, agent loop, reward) for multi-turn text-to-SQL RL"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+packages = ["text2sql_verl"]

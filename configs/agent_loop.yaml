@@ -1,0 +1,3 @@
+# Loaded by verl via actor_rollout_ref.rollout.agent.agent_loop_config_path
+- name: text2sql_agent
+  _target_: text2sql_verl.agent_loop.Text2SQLAgentLoop
